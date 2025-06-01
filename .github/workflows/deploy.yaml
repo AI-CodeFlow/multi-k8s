@@ -10,15 +10,15 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       - run: docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
-      - run: docker build -t multi-docker -f ./client/Dockerfile.dev ./client
-      - run: docker run -e CI=true multi-docker npm test
+      - run: docker build -t frankcodeflow/multi-docker -f ./client/Dockerfile.dev ./client
+      - run: docker run -e CI=true frankcodeflow/multi-docker npm test
 
-      - run: docker build -t multi-client ./client
-      - run: docker build -t multi-nginx ./nginx
-      - run: docker build -t multi-server ./server
-      - run: docker build -t multi-worker ./worker
+      - run: docker build -t frankcodeflow/multi-client ./client
+      - run: docker build -t frankcodeflow/multi-nginx ./nginx
+      - run: docker build -t frankcodeflow/multi-server ./server
+      - run: docker build -t frankcodeflow/multi-worker ./worker
 
-      - run: docker push multi-client
-      - run: docker push multi-nginx
-      - run: docker push multi-server
-      - run: docker push multi-worker
+      - run: docker push frankcodeflow/multi-client
+      - run: docker push frankcodeflow/multi-nginx
+      - run: docker push frankcodeflow/multi-server
+      - run: docker push frankcodeflow/multi-worker
