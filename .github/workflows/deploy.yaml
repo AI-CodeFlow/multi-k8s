@@ -1,24 +1,63 @@
-name: Deploy MultiDocker
+name: Deploy MultiK8s
 on:
-  push:
-    branches:
-      - master # check your repo, your default branch might be master!
+  push: 
+    branches: 
+     - main 
 
-jobs:
+env: 
+  SHA: $(git rev-parse HEAD)
+
+jobs: 
   build:
     runs-on: ubuntu-latest
-    steps:
+    steps: 
       - uses: actions/checkout@v3
-      - run: docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
-      - run: docker build -t frankcodeflow/multi-docker -f ./client/Dockerfile.dev ./client
-      - run: docker run -e CI=true frankcodeflow/multi-docker npm test
 
-      - run: docker build -t frankcodeflow/multi-client ./client
-      - run: docker build -t frankcodeflow/multi-nginx ./nginx
-      - run: docker build -t frankcodeflow/multi-server ./server
-      - run: docker build -t frankcodeflow/multi-worker ./worker
+      - name: Test
+        run: |-
+          docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+          docker build -t frankcodeflow/react-test -f ./client/Dockerfile.dev ./client
+          docker run -e CI=true frankcodeflow/react-test npm test
 
-      - run: docker push frankcodeflow/multi-client
-      - run: docker push frankcodeflow/multi-nginx
-      - run: docker push frankcodeflow/multi-server
-      - run: docker push frankcodeflow/multi-worker
+      - name: Set Service Key
+        uses: google-github-actions/auth@v0
+        with: 
+          project_id: '${{ secrets.GKE_SA_KEY }}'
+      
+      - name: Set Project
+        uses: google-github-actions/setup-gcloud@v0
+        with: 
+          project_id: compact-works-467109-f1
+
+      - name: Auth
+        run: |-
+          gcloud --quiet auth configure-docker
+
+      - name: Get Credentials 
+        uses: google-github-actions/get-gke-credentials@v0
+        with:
+          cluster_name: multi-cluster
+          location: us-central1-a
+
+      - name: Build
+        run: |-
+          docker build -t frankcodeflow/multi-client-k8s-gh:latest -t frankcodeflow/multi-client-k8s-gh:${{ env.SHA }} -f ./client/Dockerfile ./client
+          docker build -t frankcodeflow/multi-server-k8s-gh:latest -t frankcodeflow/multi-server-k8s-gh:${{ env.SHA }} -f ./server/Dockerfile ./server
+          docker build -t frankcodeflow/multi-worker-k8s-gh:latest -t frankcodeflow/multi-worker-k8s-gh:${{ env.SHA }} -f ./worker/Dockerfile ./worker
+
+      - name: Push 
+        run: |- 
+          docker push frankcodeflow/multi-client-k8s-gh:latest
+          docker push frankcodeflow/multi-server-k8s-gh:latest
+          docker push frankcodeflow/multi-worker-k8s-gh:latest
+
+          docker push frankcodeflow/multi-client-k8s-gh:${{ env.SHA }}
+          docker push frankcodeflow/multi-server-k8s-gh:${{ env.SHA }}
+          docker push frankcodeflow/multi-worker-k8s-gh:${{ env.SHA }}
+
+      - name: Apply
+        run: |-
+          kubectl apply -f k8s
+          kubectl set image deployments/server-deployment server=frankcodeflow/multi-server-k8s-gh:${{ env.SHA }}
+          kubectl set image deployments/client-deployment client=frankcodeflow/multi-client-k8s-gh:${{ env.SHA }}
+          kubectl set image deployments/worker-deployment worker=frankcodeflow/multi-worker-k8s-gh:${{ env.SHA }}
